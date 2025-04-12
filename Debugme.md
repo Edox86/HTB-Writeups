@@ -37,7 +37,7 @@
 	- *Imports:* Only `kernel32` and `msvcrt.dll` are imported.
 	-
 	- *TLS:* very interesting! I don't see anything in the TLS data, but there is a TLS callback with what looks like machine opcodes. If I try to disassemble just this part (with CFF disassembler and specifying as the base address to disassemble the TLS address of the callback) in fact I see `jmp 0x0041482B` --> IT'S A TRAMPOLINE! very strange. basically as soon as a thread starts, before calling the entry point of the thread this assembly instruction (by default from windows) is executed and that jump is made. now let's see where that jump leads: `jmp 0x041c036` to another trampoline, even weirder. let's follow: another strenuous jump...., let's follow. this leads to an infinity of subsequent jmp instructions. For this I am persevering, this is too much to be statically parsed by CFF, I will check where this leads later.
-	-![[Pasted image 20250412212731.png]]
+	-![[./Pasted image 20250412212731.png]]
 	
 	- *strings:* strings of interests that could be hacked to check what kind of anti-debug system is in place: - "Looks like your doing something naughty. Stop it!!! - I heard you like bugs so I put bugs in your debugger so you can have bugs while you debug!!! Seriously though try and find the flag, you will find it in your debugger!!!"
 	-
