@@ -63,23 +63,23 @@ Okay, we can't do anything here, there is no input. So the challenge is purely d
 
 ![Screenshot](Images/Pasted%20image%2020250412204755.png)
 
-The one described above is a clear and typical anti-debugger technique in Windows. What it does is to retrieve the address of the Thread Environment Block from the fs register (offset 30h) and then take the value from offset +2 which should be the isDebuggerPresent field, this value is compared to zero, if the debugger is not present we are fine, the value is zero and we move on, otherwise we skip to the end. To bypass this problem, you need to patch it somehow. Since I do not know if the value of dl will be used later or if it is just redundant, I will modify this zeroing with xor (making its value = 0). I replaced the 2 opcodes at address 408904 that code for `mov al, [eax+2]` with `90 30 C0` that code for `nop` and `xor al, al` instead.
+The one described above is a clear and typical anti-debugger technique in Windows. What it does is to retrieve the address of the Thread Environment Block from the fs register (offset 30h) and then take the value from offset +2 which should be the isDebuggerPresent field, this value is compared to zero, if the debugger is not present we are fine, the value is zero and we move on, otherwise we skip to the end. To bypass this problem, you need to patch it somehow. Since I do not know if the value of dl will be used later or if it is just redundant, I will modify this zeroing with xor (making its value = 0). I replaced the 3 opcodes at address 408904 that code for `mov al, [eax+2]` with `90 30 C0` that code for `nop` and `xor al, al` instead.
 Okay, the first anti-debug trick has been circumvented. Now if I follow the code, eax and edx are reset and another value at offset +68h is read from the TEB: this is the **GdiTebBatch**.
 The **GdiTebBatch** structure is used by the graphics subsystem (GDI) to efficiently group multiple drawing calls. Instead of invoking a system call for each individual GDI function, Windows groups these calls into a buffer (GdiTebBatch) to reduce the number of transitions between user mode and kernel mode. This improves the performance of graphics operations.
-In our code the value is compared to zero and if it is not zero it jumps to the end of the program, so to move on I have to patch this field as well (because during debugging I got the value 0x70 from that field). So we patch these 3 bytes again, this time to 0x0408922, with `90 30 C0` and move on.
+In our code the value is compared to zero and if it is not zero it jumps to the end of the program again, so to move on I have to patch this field as well (because during debugging I got the value 0x70 from that field, not 0). So we patch these 3 bytes again, this time at 0x0408922, with `90 30 C0` and move on.
 The next block I see is as follows:
 ![Screenshot](Images/Pasted%20image%2020250412211253.png)
 
 as we can see it starts with the `rdtsc` instruction.
-#rdtsc #time_based_antidebug
-if I remember correctly this is a low level instruction to recover CPU time and can be used to detect debuggers by checking for differences in execution speed: obviously with a debugger the execution speed is much slower, so checking the difference with a normal execution speed can detect the debugger. In fact it looks like it is just used as another anti-debugger trick because we see `rdtsc` called at the beginning (to get the initial CPU time) and then almost at the end (after some instructions have been executed and thus some time has elapsed) where the end_instruction CPU time is fetched again and compared to a value of 0x3E8 (the author of this software decided that that is a good threshold to check if a debugger is present or not), if the elapsed time between start and end is > of 0x3E8, it jumps back to the end and closes. Of course in our case, where we are in a debugger, the procedure will surely fail. So once again, I have to patch it to make sure it works under debug (and not). I can simply modify the `jg` statement at the end with `nop`.
-Okay, now we end up in a series of nop instructions. Let's go ahead and see that we end up in a part that takes the address of the `main` function and then enters a loop. The first instruction in the loop is an xor against the hardcoded `5Ch` value of the address retrieved earlier. This is clearly a main decoding routine!
+
+if I remember correctly this is a low level instruction to recover CPU time and can be used to detect debuggers by checking for differences in execution speed: obviously with a debugger the execution speed is much slower, so checking the difference with a normal execution speed can detect the debugger. In fact it looks like it is just used as another anti-debugger trick because we see `rdtsc` called at the beginning (to get the initial CPU time) and then almost at the end (after some instructions have been executed and thus some time has elapsed) where the end_instruction CPU time is fetched again and compared to a value of 0x3E8 (the author of this software decided that that is a good threshold to check if a debugger is present or not), if the elapsed time between start and end is > of 0x3E8, it jumps back to the end and closes. Of course in our case, where we are in a debugger, the procedure will surely fail. So once again, I have to patch it to make sure it works under debug (and not). I can simply modify the `jg` statement at the end (which if present jump to the end of the program) with a `nop`.
+Okay, now we end up in a series of nop instructions. Let's go ahead and see that we end up in a part that takes the address of the `main` function and then enters a loop. The first instruction in the loop is an xor against the hardcoded `5Ch` value of the address retrieved earlier. This is clearly a decoding routine of the main function! (it is possible because the main function is stored in the .text section which remeber, is RWX, so it can be read-write-execute, common pattern for self-modifying codes):
 ![Screenshot](Images/Pasted%20image%2020250412213631.png)
 
-Okay, I simply let it work. I place another breakpoint in the main function that was just decrypted and let IDA work freely again. The new breakpoint in main is now hit. We have to force IDA to parse this part again, otherwise we don't see the instruction correctly (right-click main, click undefined, then right-click again, then code).
+Okay, I simply let it work. I place another breakpoint in the main function that was just decrypted and let IDA work freely again. The new breakpoint in the decrypted main is now hit. We have to force IDA to parse this part again, otherwise we don't see the instruction correctly (right-click main, click undefined, then right-click again, then code).
 I see that the code starts over with an anti-debug trick (check the BeingDebugged flag again).
 ![Screenshot](Images/Pasted%20image%2020250412214551.png)
-And then repeat the same anti-debug trick as before. We reapply all the patches.
+And then repeat the same anti-debug trick as before. We need to reapply all the patches before moving on.
 
 By doing so and circumventing the anti-debug mechanism, we finally find ourselves in the relevant part of the program, the _n function:
 ![Screenshot](Images/Pasted%20image%2020250412214933.png)
@@ -152,7 +152,7 @@ basically does another common technique to compute an immediate value in an undi
 .text:0040176D E9 00 00 00 00                 jmp     $+5
 ```
 
-But to be honest the most important thing I think is what ends up in the stack after the above code
+But to be honest the most important thing I think is what ends up in the stack after the above code (because all those arithmetic operations are then pushed onto the stack)
 
 ```
 0061FE60  0061FE64  Stack[00001CD0]:0061FE64
@@ -173,7 +173,7 @@ More strange assembly instructions follow that seem to do something in the stack
 Obfuscated, because it moves the registers many times but eventually does something on the stack. I'm not even trying to figure out what for now. Let's move on in the code.
 The following code is a ret:
 ![Screenshot](Images/Pasted%20image%2020250412220348.png)
-Before I go back anywhere, though, I want to inspect the stack.
+Before I go back anywhere, though, I want to inspect the stack. It has been manipulated too much and can't be ignored. Also I know that after the return the code will head to the end of the program (based on the first normal execution test we did), so there must be something before the end!
 
 The current ESP at this point is `0061FE8C` and if I see the stack view I see:
 ![Screenshot](Images/Pasted%20image%2020250412220530.png)
