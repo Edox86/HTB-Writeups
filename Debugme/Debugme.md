@@ -2,6 +2,7 @@
 ## Overview
 - **Objective:** Retrieve the HTB flag
 - **Challenge Description:** A develper is experiementing with different ways to protect their software. They have sent in a windows binary that is suposed to super secureand really hard to debug. Debug and see if you can find the flag.
+- **Difficulty:** Medium
 - **Target Binary/Task:**
   - File: `Debugme.zip`  
   - SHA256: `101a7625cae64e8d17b83443b1b8f453a5af5014ada93e9e4b1418e306d3c394` 
