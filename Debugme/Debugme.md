@@ -61,7 +61,7 @@ Okay, we can't do anything here, there is no input. So the challenge is purely d
 
 - **IDA Free**:  the first thing I did was to set a breakpoint on main, then a breakpoint on mainCRTStartup (which is the PE entry point), but I kept it disabled for the first test just to see if we could get to the next breakpoint set on main (spoiler: we couldn't! so we have to keep it enabled), and another hardware breakpoint on TLS's AddressOfCallback (just in case there is relevant code to watch before the main thread starts). With these breakpoints in place, I run the program, and the first breakpoint activated is the mainCRTStartup breakpoint, which is a single jmp instruction mainCRTStartup_0 - so let's get in and finish here:
 
-![[Images/Pasted image 20250412204755.png]
+![Images/Pasted image 20250412204755.png]
 
 The one described above is a clear and typical anti-debugger technique in Windows. What it does is to retrieve the address of the Thread Environment Block from the fs register (offset 30h) and then take the value from offset +2 which should be the isDebuggerPresent field, this value is compared to zero, if the debugger is not present we are fine, the value is zero and we move on, otherwise we skip to the end. To bypass this problem, you need to patch it somehow. Since I do not know if the value of dl will be used later or if it is just redundant, I will modify this zeroing with xor (making its value = 0). I replaced the 2 opcodes at address 408904 that code for `mov al, [eax+2]` with `90 30 C0` that code for `nop` and `xor al, al` instead.
 Okay, the first anti-debug trick has been circumvented. Now if I follow the code, eax and edx are reset and another value at offset +68h is read from the TEB: this is the **GdiTebBatch**.
