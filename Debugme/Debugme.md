@@ -37,7 +37,7 @@
 	- *Imports:* Only `kernel32` and `msvcrt.dll` are imported.
 
 	- *TLS:* very interesting! I don't see anything in the TLS data, but there is a TLS callback with what looks like machine opcodes. If I try to disassemble just this part (with CFF disassembler and specifying as the base address to disassemble the TLS address of the callback) in fact I see `jmp 0x0041482B` --> IT'S A TRAMPOLINE! very strange. basically as soon as a thread starts, before calling the entry point of the thread this assembly instruction (by default from windows) is executed and that jump is made. now let's see where that jump leads: `jmp 0x041c036` to another trampoline, even weirder. let's follow: another strenuous jump...., let's follow. this leads to an infinity of subsequent jmp instructions. For this I am persevering, this is too much to be statically parsed by CFF, I will check where this leads later.
-	-![image](Images/Pasted image 20250412212731.png)
+	![Screenshot]("Images/Pasted image 20250412212731.png")
 	
 	- *strings:* strings of interests that could be hacked to check what kind of anti-debug system is in place: - "Looks like your doing something naughty. Stop it!!! - I heard you like bugs so I put bugs in your debugger so you can have bugs while you debug!!! Seriously though try and find the flag, you will find it in your debugger!!!"
 
@@ -61,7 +61,7 @@ Okay, we can't do anything here, there is no input. So the challenge is purely d
 
 - **IDA Free**:  the first thing I did was to set a breakpoint on main, then a breakpoint on mainCRTStartup (which is the PE entry point), but I kept it disabled for the first test just to see if we could get to the next breakpoint set on main (spoiler: we couldn't! so we have to keep it enabled), and another hardware breakpoint on TLS's AddressOfCallback (just in case there is relevant code to watch before the main thread starts). With these breakpoints in place, I run the program, and the first breakpoint activated is the mainCRTStartup breakpoint, which is a single jmp instruction mainCRTStartup_0 - so let's get in and finish here:
 
-![Images/Pasted image 20250412204755.png]
+![Screenshot]("Images/Pasted image 20250412204755.png")
 
 The one described above is a clear and typical anti-debugger technique in Windows. What it does is to retrieve the address of the Thread Environment Block from the fs register (offset 30h) and then take the value from offset +2 which should be the isDebuggerPresent field, this value is compared to zero, if the debugger is not present we are fine, the value is zero and we move on, otherwise we skip to the end. To bypass this problem, you need to patch it somehow. Since I do not know if the value of dl will be used later or if it is just redundant, I will modify this zeroing with xor (making its value = 0). I replaced the 2 opcodes at address 408904 that code for `mov al, [eax+2]` with `90 30 C0` that code for `nop` and `xor al, al` instead.
 Okay, the first anti-debug trick has been circumvented. Now if I follow the code, eax and edx are reset and another value at offset +68h is read from the TEB: this is the **GdiTebBatch**.
