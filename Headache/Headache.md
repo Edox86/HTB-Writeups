@@ -389,7 +389,7 @@ At this point, I’d suggest also right-clicking again at `0x00101190` and selec
 
 Once that’s done, we can start stepping through the instructions and tracing what this function is doing. If it calls into libc functions like `__libc_start_main`, it might lead us to where the real `main` is hiding.
 
-![[Pasted image 20250413125546.png]]
+![Screenshot](Images/Pasted%20image%2020250413125546.png)
 
 Exactly—what we’re seeing at the entry point is typical of the initialization code that the dynamic linker or C runtime sets up before transferring control to the actual `main` function.
 
@@ -416,7 +416,7 @@ Now, if we navigate to `DAT_00101faf`, dereference it, and go to that address, w
 
 Once Ghidra accepts that block as a function, we should start seeing a clearer structure in the decompiler view, including stack variables, local logic, and calls to standard libc functions.
 
-![[Pasted image 20250413131246.png]]
+![Screenshot](Images/Pasted%20image%2020250413131246.png)
 It's incomplete again, and maybe it's just too time-consuming to manually reconstruct everything in Ghidra. Honestly, it does look obfuscated.
 
 So for now, let’s just keep note of the real `main` function’s address: `0x00101faf` (RVA: `0x1faf`, in case the base address changes in the future), and try opening the binary in IDA to set a breakpoint there.
@@ -538,12 +538,12 @@ Before continuing with IDA and dynamic analysis at runtime, let’s first take a
 From our static analysis with Ghidra, we saw that finding the real entry point wasn’t straightforward, but we eventually identified it as `0x1faf` (RVA). So now let’s try opening the binary with IDA.
 
 As soon as we load the binary in IDA, we can see the same entry point we previously analysed in Ghidra.
-![[Pasted image 20250413183815.png]]
+![Screenshot](Images/Pasted%20image%2020250413183815.png)
 
 First things first, let’s place a breakpoint here.
 
 Now, looking at the code above, the instruction `LEA rdi, loc_1FAF` is used to load the address of our `main` function into the `rdi` register, which is then passed to the initialisation routine. Let’s go ahead and rename `loc_1FAF` to `main`, jump to that address, and set a breakpoint there as well.
-![[Pasted image 20250413184205.png]]
+![Screenshot](Images/Pasted%20image%2020250413184205.png)
 
 Also, from the screenshot of the `main` function, we can see that it looks a bit odd and likely obfuscated—definitely not a typical `main` function structure.
 
@@ -574,7 +574,7 @@ Let’s apply the insights from our previous analysis:
         
     
     This leads us to a function that uses the string, which appears to be the same one that prompts for the password — the function **sub_13C1**.
- ![[Pasted image 20250413184732.png]]
+ ![Screenshot](Images/Pasted%20image%2020250413184732.png)
 I’ll place a breakpoint there and rename this function as **password_input**.
 
 We can also observe the loop that sleeps and prints a dot four times, then follows the left branch where the password is requested from the user.
@@ -583,8 +583,8 @@ I can see that the code uses `stdin` to capture the input key. Just out of curio
 
 Let’s now continue inspecting this function statically — we’ll keep the name **password_input**.
 
-![[Pasted image 20250413190834.png]]
-![[Pasted image 20250413190907.png]]
+![Screenshot](Images/Pasted%20image%2020250413190834.png)
+![Screenshot](Images/Pasted%20image%2020250413190907.png)
 
 I could have inspected this function in Ghidra as well, but to be honest, I prefer low-level assembly to understand the behaviour — especially at runtime.
 
@@ -614,13 +614,13 @@ This time, at the entry point, when I hit **Run**, we **did** land on the `ptrac
 Now let’s check the stack trace to figure out **who called `ptrace`**.
 
 On the call stack, I see this:
-![[Pasted image 20250413195441.png]]
+![Screenshot](Images/Pasted%20image%2020250413195441.png)
 It was called by the `password_input_function`! So, not part of any initialisation routine — this strongly suggests it’s being used as an anti-debugging trick.
 
 Let’s place a breakpoint at the return address in `headache` at `0x555...53E7` to check what value is returned and confirm who exactly called this.
 
 And in fact, it was called **right at the start** of the `password_input_function`!
-![[Pasted image 20250413195732.png]]
+![Screenshot](Images/Pasted%20image%2020250413195732.png)
 The return value in `RAX` was `-1`, which confirms that the process is being traced:  
 A return value of `0xFFFFFFFFFFFFFFFF` (i.e. `-1` signed) from `ptrace` indicates that the call failed. Specifically, in the context of `ptrace(PTRACE_TRACEME)`, this failure—commonly due to `EPERM`—means the process is already being traced, such as when running under a debugger. This is a typical anti-debugging mechanism.
 
@@ -630,10 +630,10 @@ When stepping through the code, everything proceeds as expected (just like we sa
 (As a side note: during step-through, I usually rename any function calls I encounter to improve readability.)
 
 Right after the user inputs the key in the terminal, the code checks the length of the input. If it’s not `0x14` (20 characters), it displays `"Login Faild"`, then moves to the next block.
-![[Pasted image 20250416232244.png]]
+![Screenshot](Images/Pasted%20image%2020250416232244.png)
 
 After the above check is bypassed (for example, by entering a key like `12345678912345678912`), we reach the next block:
-![[Pasted image 20250416232430.png]]
+![Screenshot](Images/Pasted%20image%2020250416232430.png)
 
 We can see that on the left branch, another `"Login Failed!"` is printed if a certain condition isn’t met. Looking at the preceding block, this happens only when the instruction `cmp [rbp+var_8], 13h` evaluates to less than `0x13` (which is 19 in decimal). This value is clearly used as an index — most likely into a buffer.
 
@@ -671,7 +671,7 @@ Tried this on HTB — and again, it’s invalid.
 The author is still toying with us.
 
 That said, after submitting `HTB{w0w_th4ts_c000l}` as the password, it does pass the first two checks (length and the char-by-char comparison).
-![[Pasted image 20250416233144.png]]
+![Screenshot](Images/Pasted%20image%2020250416233144.png)
 
 BUT when I reach the new code branch and try to follow it to the end, the process is abruptly terminated by the call: `call sub_5150`.  
 So, I need to understand what both calls in this block do — `call sub_5050` and `call sub_5150`. Let’s investigate them:
@@ -704,7 +704,7 @@ I have two alternatives:
     
 
 I realised that the way I originally break-pointed `ptrace` was flawed. In fact, at runtime, if I search for the string `ptrace`, I now find a **direct syscall** being made — and that’s why it wasn’t detected using the previous method. It’s because the `ptrace` function is being invoked **directly via the `syscall` instruction**, bypassing the standard libc call!
-![[Pasted image 20250417183900.png]]
+![Screenshot](Images/Pasted%20image%2020250417183900.png)
 
 That does seem odd — the `ptrace` syscall is located in the `.data` section, which normally shouldn't be executable. But it’s very possible the memory protection is modified at runtime, likely to allow execution in that region. That would definitely explain some of the obfuscation and anti-analysis tactics.
 
@@ -714,7 +714,7 @@ Additionally, since `strace` showed that `mprotect` is being called — which of
 
 Same approach: search for strings containing `"mprotect"`, locate where the syscall is made directly, and set the breakpoint there.
 
-![[Pasted image 20250417185206.png]]
+![Screenshot](Images/Pasted%20image%2020250417185206.png)
 
 Remember: the above breakpoints are only valid for the current runtime session. If we restart the program, the addresses of `ptrace` and `mprotect` may change — so we’ll need to re-identify and set them each time.
 
@@ -727,7 +727,7 @@ Now, let’s run the program and see where execution stops:
 3. Now, we hit the breakpoint inside `ptrace` — which means we’ve found an **early call** to `ptrace`, even before reaching the `password_input_function` we had previously analysed.
     
 The section of code where this breakpoint was triggered is:
-![[Pasted image 20250417190931.png]]
+![Screenshot](Images/Pasted%20image%2020250417190931.png)
 
 This is a **critical** part of the challenge. At a glance, we can already notice several key elements:
 
@@ -753,7 +753,7 @@ Let’s break it down step-by-step:
     
 4. If we proceed further, we can see the program constructs an immediate value string on the stack. When fully built, it becomes the following Base64-encoded string:
 
-![[Pasted image 20250417204141.png]]
+![Screenshot](Images/Pasted%20image%2020250417204141.png)
 If we decode the Base64 string, we get:  
 `efe28a672ec1294cefce4b8de03aadc2` — which definitely looks like a hash (probably MD5 or similar).
 
@@ -791,7 +791,7 @@ Following the **jump to the "debugger detected" block**, we can clearly see it c
     
 
 When I try to disassemble or interpret that `.data` section address as code, I see this:
-![[Pasted image 20250417205806.png]]
+![Screenshot](Images/Pasted%20image%2020250417205806.png)
 
 We now need to understand what this function does with the pointer to the `.data` section — so let’s dive into it.
 
@@ -801,10 +801,10 @@ This is a strong indicator that the function is about to **write or execute some
 
 So let’s step into this function and carefully analyse what it does. We're likely looking at the real core logic being unpacked — possibly even the actual flag validation mechanism.
 
-![[Pasted image 20250417210622.png]]
+![Screenshot](Images/Pasted%20image%2020250417210622.png)
 As we can see, after the `mprotect` call—which might change the protection settings of a portion of memory—the program uses this memory in the following call. Let's take a closer look at that last call:
 
-![[Pasted image 20250417210757.png]]
+![Screenshot](Images/Pasted%20image%2020250417210757.png)
 
 `mprotect` is dynamically changing the protection of a section of memory to make it RWX—this is a clear indication of obfuscation and self-modifying code.
 
@@ -854,20 +854,20 @@ Just remember one important thing (which, in my opinion, the HTB walkthrough ove
 Now, let’s continue with our dynamic approach:
 
 Here is the `main` function before decryption:
-![[Pasted image 20250418154826.png]]
+![Screenshot](Images/Pasted%20image%2020250418154826.png)
 
 Main function after decryption—note that if we choose to analyze the newly decrypted routine at runtime, we must remove any breakpoints set within `main`. Leaving breakpoints inside `main` can interfere with the decryption process and result in an incorrectly decrypted function. Instead, we should set a breakpoint at the point where `main` is about to be called, but not within `main` itself.
-![[Pasted image 20250420230401.png]]
-![[Pasted image 20250421000508.png]]
+![Screenshot](Images/Pasted%20image%2020250420230401.png)
+![Screenshot](Images/Pasted%20image%2020250421000508.png)
 
 
 By analyzing it step by step, just like we did with the initial `password_input_function`, we can see that at some point it compares the input length with `0x14`. Then, as before, it stores a hardcoded string in local variables: `HTB{w0w_th4ts_c000l}`. The author is clearly still having fun with this—relentlessly!
 
-![[Pasted image 20250421000601.png]]
+![Screenshot](Images/Pasted%20image%2020250421000601.png)
 
 Anyway, a bit further along, we can see that the following string is built in a local variable (by moving immediate hex values): `SFRCe3RoMXNfMXNfdGgzX2ZsNGd9`.
 
-![[Pasted image 20250421000642.png]]
+![Screenshot](Images/Pasted%20image%2020250421000642.png)
 
 And shortly after, the `base64_decoder` function is called—so the string above must indeed be Base64. Let's decode it:
 ```
@@ -888,25 +888,23 @@ Then, a pointer to this obfuscated string is passed to a function stored in the 
 So we try decrypting it by XORing each byte with `0x61`, using a site like: [https://md5decrypt.net/en/Xor/](https://md5decrypt.net/en/Xor/)  
 And the result is: `HTB{th4t_w4s_h4rd}`
 
-![[Pasted image 20250421000727.png]]
+![Screenshot](Images/Pasted%20image%2020250421000727.png)
 
 Again, can we trust this is the correct key? Let’s give it a shot. And… another error. I’m starting to get tired of playing along here, friends.
 
 After this part of the code, it moves on and takes a conditional jump based on the result of `ptrace`—which, of course, we had patched to return `0`, so at this point we should be following the correct branch.
-![[Pasted image 20250421000858.png]]
+![Screenshot](Images/Pasted%20image%2020250421000858.png)
 
 And here we are again, landing in another interesting block that’s likely constructing yet another string in local variables using hardcoded immediate values. Then comes a long, heavily obfuscated sequence of arithmetic operations—really messy stuff—that eventually ends with a `cmp`.
 
 This is very likely where the real comparison happens, meaning this is probably the _actual_ place where our input is checked against the correct key.
 
-![[Pasted image 20250420234526.png]]
+![Screenshot](Images/Pasted%20image%2020250420234526.png)
 
 It’s a long loop of arithmetic operations, but here’s the interesting part: in `byte ptr [rbp-19h]`—right before the final `cmp`—we can actually observe, loop after loop, each character of the FINAL (yes, _very final_) KEY being revealed!
 
 One important note: since we haven’t provided the correct key, the comparison fails due to a length mismatch, which causes some issues. To keep things running smoothly, I patched the `JZ` to `JNZ`—and that let the execution continue without interruption.
 
-**FINAL KEY:**
-`HTB{l4yl3_w4s_h3r3!}`
 
 ---
 ### ⚠️ Challenges Encountered / Lessons Learned
