@@ -242,7 +242,7 @@ As you can see, the code is:
 
 Basically, it decrypts the encrypted code using the 64-bit hexadecimal value as the key and a “multiplication algorithm” to decrypt it. In C style it would look like this:
 ```
-For(int i=0; i < 0x198; i++)
+For(int i=0; i < 0x198; i+=8)
 	Obfuscated_function[i] = Obfuscated_function[i] * 64_bit_hex_key
 ```
 
