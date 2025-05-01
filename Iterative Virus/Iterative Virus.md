@@ -36,7 +36,7 @@
 
 **WARNING:** Always rename and change the extension of potentially malicious files (e.g. from .exe to .bin) to avoid accidental execution.
 
-###🧾 File Header
+### 🧾 File Header
 
 - Machine: AMD64 (K8) `0x8664`
 
@@ -77,7 +77,7 @@ We can read some readable words but not their entirety, which means they are pro
 
 - The other only visible string of interest is: `Hello World!`
 - This is printed to the console upon execution of the program.(since it is a virus, we should not run it in the system! But I can tell you that this is the string printed by the program when it runs in the console). We can definitely use it to set a breakpoint or check what part of the code uses it. (And we will find that it is the main function).
-- Nothing else of interest: the rest are obfuscated strings or normal API calls and resources.
+- Nothing else of interest: the rest are obfuscated strings or normal API calls.
 
 ### 📥 Import Table
 
@@ -114,7 +114,7 @@ To conclude our recognition assessment, I see that there are no resources.
 
 * * *
 
-##🧷 Static Code Analysis with IDA Free
+## 🧷 Static Code Analysis with IDA Free
 
 Let us now proceed with the static analysis of the code. For this purpose I use IDA free: 
 Open IDA, load the binary and analyze it. Note that I will show screenshota of my IDA file with the variables already renamed, so that it is easier to understand and explain.
@@ -248,12 +248,12 @@ For(int i=0; i < 0x198; i+=8)
 
 Now, if we let the decryption happen until the end (by running the code at runtime) we see that we do not get a clear function! So what is the purpose of this decryption?
 
-💡 Simple: remember that the obfuscated function happens only when the flag is 5? This means that the right decrypted function is obtained only when using the 64-bit hexadecimal value dependent on the final flag.
-At this point, I tried to statically decrypt those 198h bytes with the hexadecimal value of the flag = 4, but I still did not get the right deobfuscated function. I then decided to go further in the analysis and saw that after the decryption routine there is this block:
+💡 Simple: remember that the obfuscated function is called only when the flag is 5? This means that the right decrypted function is obtained only when using the last 64-bit hexadecimal value (when the flag=4).
+So at this point, I tried to statically decrypt those 198h bytes with the hexadecimal value of the flag = 4, but I still did not get the right deobfuscated function. I then decided to go further in the analysis and saw that after the decryption routine there is this block:
 
 ![Screenshot](./images/16.png)
 
-which clearly shows that the current `flag` located 5 bytes after the entry point is updated each time the obfuscated function is decrypted.
+which clearly shows that the current `flag` located 5 bytes after the entry point is updated each time the obfuscated function is decrypted. So the flag is also a counter.
 This tells me that to get the function obfuscated we have to decrypt it step by step using all the 64-bit hex keys from 1 to 4 (not from 0 because the author provided this file with the value 1, suggesting that the first decryption has already happened).
 I then created a simple script in python to statically decrypt it with all keys from 1 to 4:
 
@@ -431,13 +431,14 @@ I bypassed this check by simply patching the 5th byte after the entry point with
 .ivir:00007FF72F79C8BD xor     edx, edx
 ```
 
-✅ What I’m seeing here (even without dynamic execution, but just through static analysis) is that the code reconstructs the HTB flag on the stack :)  
-I haven't shared the fully deobfuscated code to avoid spoiling the flag. Really fun challenge!
+✅ What I’m seeing here (even without dynamic execution, but just through static analysis) is that the code reconstructs the HTB flag on the stack! :)
+I haven't shared the fully deobfuscated code to avoid spoiling the flag. Job done! Really fun challenge!
+
 PS: If you're curious, you can see how the flag is used: at runtime it loads `LoadLibraryA`, `FreeLibraryA`, `user32.dll`, `advapi32.dll`, and `GetUserNameA`. If the username length is `25h` (most porbably you need to bypass this as your Username won't be exactly 37 chars), it triggers a MessageBox displaying the HTB flag.
 
 * * *
 
-##🏁 Conclusion
+## 🏁 Conclusion
 
 This challenge was a great example of a manual decryptor virus using iterative decryption steps to hide its true payload. It showcased real-world malware behavior, including:
 
