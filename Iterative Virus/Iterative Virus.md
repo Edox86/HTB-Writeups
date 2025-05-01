@@ -68,6 +68,7 @@
 
 
 A quick hex view of `.ivir` shows:
+
 ![Screenshot](./images/1.png)
 
 We can read some readable words but not their entirety, which means they are probably obfuscated or split. Interestingly, these strings are API and DLL names, which may suggest that the file will load DLLs and APIs dynamically at runtime. Let's remember this.
@@ -85,6 +86,7 @@ Only `kernel32.dll` is imported (as opposed to the DLL names we saw in the strin
 ### 🧰 PEStudio Analysis
 
 I passed the file to PE studio so it could tell me which API has potentially malicious behavior and it showed the following:
+
 ![Screenshot](./images/2.png)
 
 The following called my attention because are potential malware-related APIs:
@@ -100,11 +102,13 @@ I don't see a clear anti-debug API.
 ### 🧠 PE-Bear Observations
 To make our evaluation more complete, I also passed this binary into PE-Bear and it also gives us information about the Rich Header (this is encrypted information that Microsoft includes in the header when compiling the file) and shows for example how it was constructed (not useful for this challenge, however).
 
-| Rich Header:
-| ![Screenshot](./images/3.png)
+- Rich Header:
 
-| Optional Header checksum set to zero (something I hadn't noticed before on CCF explorer) — uncommon:
-| ![Screenshot](./images/4.png)
+![Screenshot](./images/3.png)
+
+- Optional Header checksum set to zero (something I hadn't noticed before on CCF explorer) — uncommon:
+
+![Screenshot](./images/4.png)
 
 To conclude our recognition assessment, I see that there are no resources.
 
@@ -116,9 +120,11 @@ Let us now proceed with the static analysis of the code. For this purpose I use 
 Open IDA, load the binary and analyze it. Note that I will show screenshota of my IDA file with the variables already renamed, so that it is easier to understand and explain.
 
 🎯 As soon as IDA finishes the analysis, we are shown the entry point that IDA calls `start` and we see this:
+
 ![Screenshot](./images/5.png)
 
 The entry point is inside `.ivir`. It is very ambiguous that an entry point of a normal exe starts with a jump to somewhere else. Let's follow and check where it goes. I can see this long graph:
+
 ![Screenshot](./images/6.png)
 
 This is basically the main function of the virus, and we need to understand step by step what it does. It is very important to rename the functions that we will see in the initial part, because we will soon understand very important things about the code. So let's do that.
@@ -132,6 +138,7 @@ In the first block at the top of the graph we see the following:
 - call a function
 
 We need to follow this first function call to understand what it does:
+
 ![Screenshot](./images/7.png)
 
 This first function dynamically resolves GetProcAddress via the following steps:
@@ -155,6 +162,7 @@ Basically, depending on the `flag` passed as a parameter, it will retrieve the n
 So, the above code constructs API names on the fly based on input flags.
 
 Returning again to the previous code, we can now know which APIs are retrieved using the combination of `this call + GetProcAddress`. Notice also that the addresses of many APIs are saved in local variables for their future use, and I have renamed them to get a clearer view of all the rest of the code that we will see later. Here is what the first block of the main virus function looks like now:
+
 ![Screenshot](./images/9.png)
 
 We see that it retrives many interesting APIs! Dynamically resolved functions:
@@ -164,22 +172,27 @@ FindFirstFile, FindNextFile, etc.
 These are standard APIs used in file infection routines.
 
 Let us now pay attention to the last part of this first block and see this:
+
 ![Screenshot](./images/10.png)
 
 It loads into r14 the address of the `[entry point + 5]` in our file and compares it to the value 5.
 This is very strange...basically pointing to `entry point + 5` means that the code is pointing just after the first jump (which is indeed 5 bytes) we saw to the entry point! This suggests that after the jump to the entry point there is “useful” data that the virus is using! At first we did not see them because IDA was showing only the recognizable opcode it could, the jump. But if we look at it in text view we see this:
+
 ![Screenshot](./images/11.png)
 
 In fact the next byte is a data byte and right now it is storing the value 1.
 So why is it comparing it to 5? What does 5 mean? What happens if the value is 5? Let's follow the branch that takes if the value is 5 and see what happens:
+
 ![Screenshot](./images/12.png)
 
 if we follow the call, it brings us to this:
+
 ![Screenshot](./images/13.png)
 
 We are still inside the .ivir section of the PE, but here we see a number of very strange opcodes, including an int 7Eh instruction. If we look at the raw opcode, we immediately see that it is an obfuscated/encrypted function!
 Very interesting, this is the easter egg we need to decrypt!
 Okay, since this branch is useless at the moment, let's go back to analyzing what happens if the flag in `[entry point + 5]` is not 5:
+
 ![Screenshot](./images/14.png)
 
 We see that it is loading the address of the obfuscated function into a registry! A very good sign that we are in the right place that can lead us to decryption. Even more interesting is the storage in a local variable of what appears to be an offset encoded from the beginning of the obfuscated function!
@@ -212,6 +225,7 @@ All this represents a classic working implementation of an exe file infector (li
 
 We finally get to the end of this long piece of code that only serves to infect other files, but our goal let's not forget was to find out what's inside that encrypted code!
 And that seems to have happened exactly at the end of the process of infecting a new file, so here we are now:
+
 ![Screenshot](./images/15.png)
 
 💻 **This is the most important part of the challenge.**
@@ -236,6 +250,7 @@ Now, if we let the decryption happen until the end (by running the code at runti
 
 💡 Simple: remember that the obfuscated function happens only when the flag is 5? This means that the right decrypted function is obtained only when using the 64-bit hexadecimal value dependent on the final flag.
 At this point, I tried to statically decrypt those 198h bytes with the hexadecimal value of the flag = 4, but I still did not get the right deobfuscated function. I then decided to go further in the analysis and saw that after the decryption routine there is this block:
+
 ![Screenshot](./images/16.png)
 
 which clearly shows that the current `flag` located 5 bytes after the entry point is updated each time the obfuscated function is decrypted.
