@@ -131,7 +131,7 @@ Since I prefer dynamic analysis using IDA, I’ll proceed with that approach.
 
 As soon as we open the binary in IDA, we’re presented with the entry point. From there, we jump to main, which IDA has already identified. In the first block of main, we observe the following sequence:
 
-![[1.png]]
+![Screenshot](./images/1.png)
 
 However, we notice something interesting here: when `ptrace` is called and the result is stored in `RAX`, it returns `-1` at runtime. This causes execution to follow the “Well Done!!” branch. But crucially, there’s **no sign of the HTB flag** being printed in that branch. Therefore, the only viable path to the flag is to **force IDA to take the opposite branch**. So to bypass the ptrace call anyway!
 
