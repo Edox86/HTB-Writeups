@@ -81,7 +81,7 @@ EXCEPTION! ABORT
 ```
 
 No libc calls visible in `ltrace`. `ltrace` can only show **lib‑function** calls that pass through the dynamic linker.  
-Your little 1.2 KB stub never touches libc, so the only thing `ltrace` could print is the program’s own **stdout text**.
+Our little 1.2 KB stub never touches libc, so the only thing `ltrace` could print is the program’s own **stdout text**.
 
 `strace` shows more:
 
