@@ -610,9 +610,6 @@ That said, this isn’t a blocker. We can still proceed by:
 * Searching for the buffer that likely holds the encrypted `flag.enc` contents.
 * Dumping it for decryption.
 
-You mentioned attempting to locate the heap — what did you try exactly, and what result did you get?
-
-
 ```bash
 (gdb) info proc mappings
 Mapped address spaces:
@@ -640,12 +637,12 @@ Start Addr         End Addr           Size               Offset             File
 
 ```
 
-I can't see any heap address to start from, so this could turn into an endless backtracking task.
-
+I can't see any heap address to start from, so this could turn into an endless backtracking task and I'm start to think that there is a much easier way to complete the task.
+Who cares if we don't know where exactly the encrypted flag's bytes are?!? let's bruteforce everything!
 
 ## 🧪 Brute-Scanning the Dump for the Flag
 
-It’s actually much easier to brute-force the HTB flag using the key we have across the entire dump and see if anything comes up.
+It’s actually much easier to brute-force the HTB flag using the key we have across the entire dump and see if anything comes up. That's possible because we know the pattern of the HTB flag.
 Given we have the key, IV, and algorithm, we can brute-force scan the core dump for encrypted blocks and attempt to decrypt.
 
 ### Python Script: `scan_core.py`
