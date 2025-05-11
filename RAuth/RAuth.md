@@ -1271,12 +1271,10 @@ Flag: "HTB{correct_flag!}"
 ---
 ## ✅ Challenges Encountered / Lessons Learned
 
-- Rust binaries have tons of internal symbols and noise, but keeping debug info helps.
+- I had never reversed a file written in Rust before (Rust binaries have tons of internal symbols and noise), so this required some studying, but above all, a great deal of learning.
     
-- Salsa20 usage is obvious once you recognize naming patterns.
-    
-- Even when binary prints a fake flag, memory inspection and dynamic debugging reveal real password path.
-    
+- Also I had also never seen an implementation of Salsa20 before.
+
 - The hosted server often uses raw TCP—not HTTP. Always check protocol first!
 
 ---
