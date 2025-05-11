@@ -879,7 +879,7 @@ Let’s now proceed with disassembling it using IDA:
 
 As soon as IDA finishes its analysis, we’re presented with:
 
-![[Reversing/RAuth/1.png]]
+![screenshot](./1.png)
 
 This is the entry point, but as we discovered earlier, we can jump directly to `_ZN5rauth4main...`, which in our case (as seen in the screenshot above) is represented as `_ZN5rauth4main17h7d7aed61ae7734f4E`.  
 Let’s double-click on it, and now we're inside the actual `main` function.
@@ -1003,7 +1003,7 @@ So, the binary is clearly applying some kind of cryptographic transformation, li
 
 In IDA, I went to **Search → Text** and looked for all occurrences of the string `"salsa"`. There are many hits, but I’ll narrow the focus to the three occurrences that show actual `call` instructions and reside within the Rust `main` function. These are the ones likely relevant to the logic that encrypts/decrypts data—possibly the flag or password.
 
-![[2.png]]
+![screenshot](./2.png)
 
 Let’s follow each of those function calls and set breakpoints to observe their behaviour at runtime.
 
