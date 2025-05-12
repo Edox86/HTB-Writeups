@@ -289,7 +289,7 @@ iIt’s a clever way to hide the real entry point. However, we still have our ca
 
 Here is a screenshot of the code that calls `strlen`:
 
-![[Reversing/Behind the Scenes/1.png]]
+![screenshot](./1.png)
 
 After checking the length of our input (which must be 12 characters to proceed), it performs a series of `strncmp` calls — suggesting that it’s verifying a password.
 
