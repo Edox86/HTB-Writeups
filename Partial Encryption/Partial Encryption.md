@@ -379,11 +379,11 @@ During the first execution, I step over the initial calls:
 
 So, the **second call** is our area of interest — this is where the flag comparison logic takes place.
 
-![[Reversing/Partial Encryption/1.png]]
+ ![Screenshot](./1.png)
 
 Let’s step into that second function and examine its logic:
 
-![[Reversing/Partial Encryption/2.png]]
+ ![Screenshot](./2.png)
 
 At the beginning of the function, we see:
 
@@ -399,15 +399,15 @@ In the following block, the counter is compared against 22, indicating a loop st
 
 In the next block, we observe the program setting a pointer to `argv[1]` and checking each character individually. It looks for the string terminator (`\0`) — indicating the **end of the input string**. If the character at the current index is not `0`, it skips the conditional block and proceeds here:
 
-![[Reversing/Partial Encryption/3.png]]
+ ![Screenshot](./3.png)
 
 This simply increments the counter and restarts the loop, continuing until it reaches the end of the input string. 
 
-![[Reversing/Partial Encryption/4.png]]
+ ![Screenshot](./4.png)
 
 When it reach the end of the input string, execution moves here:
 
-![[Reversing/Partial Encryption/5.png]]
+ ![Screenshot](./5.png)
 
 Since the input is incorrect anyway, I decided to **cheat by patching the ZF (Zero Flag)** to force entry into the yellow block and analyze it.
 
@@ -427,7 +427,7 @@ if (eax == 1) goto counter_increment
     
 2. A memory address from the `.data` section is loaded into `rcx`.  
     It contains:
-![[Reversing/Partial Encryption/6.png]]
+ ![Screenshot](./6.png)
 
 Likely the **encrypted payload**.
 
@@ -437,18 +437,18 @@ A function is called — I followed it:
     
 - The following block clearly shows a **loop performing arithmetic operations**, which strongly suggests this is the **decryption routine**.
         
-![[Reversing/Partial Encryption/7.png]]
+ ![Screenshot](./7.png)
 
 I continued to trace the decryption process and observed the output in memory:
 
-![[Reversing/Partial Encryption/8.png]]
+ ![Screenshot](./8.png)
 
 - It’s **not a string**, but it **resembles opcodes**, which confirms that what’s being decrypted is **executable code**.
     
 - As suspected, a `VirtualProtect` call follows, which marks this newly decrypted memory region as **executable**.  
     After checking the decrypted function:
 
-![[Reversing/Partial Encryption/9.png]]
+ ![Screenshot](./9.png)
 
 1. It simply prints **"Nope"** — confirming this is the failure message.  
     So, somewhere else, there **must also be a decryption of the success path**.
@@ -471,7 +471,7 @@ I continued to trace the decryption process and observed the output in memory:
 Immediately after, a **similar decryption routine** appears — I’ve marked this one as **red**.  
 This time, the decryption **uses `0x30` as the key**:    
 
-![[Reversing/Partial Encryption/10.png]]
+ ![Screenshot](./10.png)
 
 Following the same process:
 
@@ -479,7 +479,7 @@ Following the same process:
     
 - I analyzed the result:    
 
-![[Reversing/Partial Encryption/11.png]]
+ ![Screenshot](./11.png)
 
 It appears to be an **exit routine**, which is then executed to terminate the program.
 
@@ -513,14 +513,14 @@ The idea is to **bypass the early exit** and continue execution within the origi
 
 So I patched the call to the `decrypted_exit` function using NOPs:
 
-![[Reversing/Partial Encryption/12.png]]
+ ![Screenshot](./12.png)
 
 This effectively **neutralizes the premature exit**, allowing execution to flow back into the rest of `main`.
 ### Result: Access to New Code
 
 After bypassing the exit, I successfully returned to a deeper section of the `main` function:
 
-![[Reversing/Partial Encryption/13.png]]
+ ![Screenshot](./13.png)
 
 Following this new path reveals **additional decrypted blocks**, similar to what we've seen earlier — likely decrypted in-memory using routines that:
 
