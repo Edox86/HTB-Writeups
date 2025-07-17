@@ -230,7 +230,7 @@ From the above statistics, a few things stand out as prime suspects:
 At this point, it’s definitely worth checking what `192.168.0.104` is doing by filtering for this IP address:
 ![Screenshot](Images/Pasted%20image%2020250711155952.png)
 
-We observe a lot of traffic between `104` and `115`, but the key discovery is that `115` sent an `.exe` file—`http://utube.online:8000/xQWdrq.exe`—to `104`. This strongly suggests that `104` is the victim, and `115` is acting as the attacker.
+We observe a lot of traffic between `104` and `115`, but the key discovery is that `104` sent an `.exe` file—`http://utube.online:8000/xQWdrq.exe`—to `115`. This strongly suggests that `115` is the victim, and `104` is acting as the attacker.
 
 Let’s follow the HTTP stream:
 
@@ -1179,12 +1179,12 @@ Let’s reopen Wireshark and filter for `tcp.port == 31337` and we see:
 
 ![Screenshot](Images/Pasted%20image%2020250717165703.png)
 
-Obviously, `192.168.0.115` is our C2 server that was contacted.  
-To confirm that `115` is indeed the malicious C2, we can filter with `frame contains "utube.online"` and we see here:
+Obviously, `192.168.0.104` is our C2 server that was contacted.  
+To confirm that `104` is indeed the malicious C2, we can filter with `frame contains "utube.online"` and we see here:
 
 ![Screenshot](Images/Pasted%20image%2020250717165731.png)
 
-The above confirms what we discovered during our initial analysis: it’s the victim requesting the `.exe` file from the C2 — confirming that `192.168.0.115` is the **C2**, and `192.168.0.104` is the **victim**.
+The above confirms what we discovered during our initial analysis: it’s the victim requesting the `.exe` file from the C2 — confirming that `192.168.0.104` is the **C2**, and `192.168.0.115` is the **victim**.
 
 In the same way, we can filter for the handshake marker sent by the victim to the C2 using `frame contains "z11gj1"`
 
