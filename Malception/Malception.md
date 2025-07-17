@@ -48,7 +48,7 @@ wireshark capture.pcapng &
 
 Now, because the challenge description mentions _“attackers poisoned DNS records”_, DNS is the first filter we should apply in Wireshark:
 
-![[Pasted image 20250711142934.png]]
+![Screenshot](Images/Pasted%20image%2020250711142934.png)
 
 Alternatively, we can extract these records using the following command:
 
@@ -204,14 +204,14 @@ In Wireshark, navigate to:
 
 This will provide key information like the capture's start and end times, as well as total packet counts.
 
-![[Pasted image 20250711141654.png]]
+![Screenshot](Images/Pasted%20image%2020250711141654.png)
 which seems 17 seconds.
 
 Let's do a bit of reconnaissance and profile the traffic mix:
 
 1. Statistics ➜ **“Protocol Hierarchy”** to see which protocols dominate:
 
-![[Pasted image 20250711141933.png]]
+![Screenshot](Images/Pasted%20image%2020250711141933.png)
 
 2. Statistics ➜ **“Endpoints”** (IPv4/IPv6) highlights who’s talking to whom:
     
@@ -228,13 +228,13 @@ From the above statistics, a few things stand out as prime suspects:
     
 
 At this point, it’s definitely worth checking what `192.168.0.104` is doing by filtering for this IP address:
-![[Pasted image 20250711155952.png]]
+![Screenshot](Images/Pasted%20image%2020250711155952.png)
 
 We observe a lot of traffic between `104` and `115`, but the key discovery is that `115` sent an `.exe` file—`http://utube.online:8000/xQWdrq.exe`—to `104`. This strongly suggests that `104` is the victim, and `115` is acting as the attacker.
 
 Let’s follow the HTTP stream:
 
-![[Pasted image 20250711160456.png]]
+![Screenshot](Images/Pasted%20image%2020250711160456.png)
 
 And we’ve found the malware sample we need to analyze! (`MZ` is the magic header for `.exe` files). To export it:
 
@@ -719,17 +719,17 @@ Let’s begin the static analysis of this new `.exe` file using the available to
 - **PE Studio:**  
     ◦ This is an extract of the potential danger of the APIs used:
     
-    ![[Pasted image 20250717163541.png]]
+    ![Screenshot](Images/Pasted%20image%2020250717163541.png)
     
     PE Studio warn of unknown signature for RCData resource:
-    ![[Pasted image 20250717163644.png]]
+    ![Screenshot](Images/Pasted%20image%2020250717163644.png)
     - Normal manifest resource found:
-    ![[Pasted image 20250717163708.png]]
+    ![Screenshot](Images/Pasted%20image%2020250717163708.png)
     What’s important to analyze is the entropy of each section, which appears naturally high in `.text` (due to code), but is especially high in the `.rsrc` section as well — this might indicate the presence of encrypted content.
-    ![[Pasted image 20250717163744.png]]
+    ![Screenshot](Images/Pasted%20image%2020250717163744.png)
 
 - **Resource Hacker:** inspecting the hex view of the RCData shows:
-- ![[Pasted image 20250717163835.png]]
+- ![Screenshot](Images/Pasted%20image%2020250717163835.png)
 This is without any doubt an encrypted section. It’s 99% malicious in my opinion.
 
 - **VirusTotal results:** 4/68 – suspicious file:  
@@ -746,9 +746,9 @@ As soon as the binary is loaded into IDA, we’re shown the graph of `int __fast
 So let’s navigate to the callback addresses and inspect the code:
 
 - **Address of TLS Callback 1:** Based on the info from PE Bear, we know this is located at `0x140001270`, and in IDA (which labels this as `TlsCallback_0`), we see the following (partial screenshot):
-![[Pasted image 20250717164012.png]]
-![[Pasted image 20250717164019.png]]
-![[Pasted image 20250717164026.png]]
+![Screenshot](Images/Pasted%20image%2020250717164012.png)
+![Screenshot](Images/Pasted%20image%2020250717164019.png)
+![Screenshot](Images/Pasted%20image%2020250717164026.png)
 
 ...even more suspicious! It inspects the list of running processes before reaching `main`, locates a specific one, opens it, and performs what appears to be a decryption routine. Why would it do that? There are several possible reasons, including anti-debugging, process injection (very likely), environmental awareness, or other malicious purposes. Placing a breakpoint here would definitely be worthwhile to see which process it's targeting.
 Since I’ve decided to proceed with full static analysis, I decompiled this function using AI to understand its behavior in detail:
@@ -795,25 +795,25 @@ If that’s just the first TLS callback, I’m very curious to see what the seco
 
 - **Address of TLS Callback #2:** `0x140001440` (labeled as `TlsCallback_1` in IDA)
 
-![[Pasted image 20250717164116.png]]
+![Screenshot](Images/Pasted%20image%2020250717164116.png)
 
 Cheeky! This is a very common anti-debug trick that uses **CPUID** as an anti-sandbox technique. If it detects it's running inside a sandbox, it exits without executing the main function. We’ll need to bypass this at runtime.
 
 Now that we have a rough idea that something suspicious is happening before the `main` function (and although more investigation is needed, this gives us a general understanding), let’s move on to the `main` function.
 
-![[Pasted image 20250717164306.png]]
+![Screenshot](Images/Pasted%20image%2020250717164306.png)
 
 It seems it’s initializing the Winsock connection protocol and retrieving IP address information for `utube.online:31337` — a remote C2 server.
 
-![[Pasted image 20250717164354.png]]
+![Screenshot](Images/Pasted%20image%2020250717164354.png)
 
 It opens a socket and attempts to connect to a remote server. If it fails, it retries in a loop… not good: this is a common pattern for a reverse connection, typically used to bypass firewall restrictions. Let’s see what happens if the connection succeeds:
 
-![[Pasted image 20250717164411.png]]
+![Screenshot](Images/Pasted%20image%2020250717164411.png)
 
 It seems the code sends a hardcoded text `"z11gj1"` — possibly a stage-1 hello message to notify the server that the client is ready to receive data or transition to a second stage.
 
-![[Pasted image 20250717164445.png]]
+![Screenshot](Images/Pasted%20image%2020250717164445.png)
 
 Then there is a `recv(buf, 0x400);` — this appears to be the **stage-1 reply from the server**.  
 We’ve received some data from the server (its contents are unknown since we’re not connected to the actual C2, so we’ll skip that for now).
@@ -822,19 +822,19 @@ Next, it retrieves the NetBIOS/DNS hostname using `GetComputerNameExA(host);`
 
 Next:
 
-![[Pasted image 20250717164501.png]]
+![Screenshot](Images/Pasted%20image%2020250717164501.png)
 
 Here something interesting happens: the hostname is XORed with the reply received from the remote C2 (the decryption key is not hardcoded):  
 `xor_in_place(host, buf); // host ^= first reply`
 
 After this, we see that:
-![[Pasted image 20250717164540.png]]
+![Screenshot](Images/Pasted%20image%2020250717164540.png)
 
 Another hardcoded marker is sent to the C2 containing the string `"533_11s4"` →  
 `send("533_11s4\n"); // stage-2 hello`  
 This is another command sent to the server to inform that the victim is ready for the next action. What’s the next action? Let’s see:
 
-![[Pasted image 20250717164557.png]]
+![Screenshot](Images/Pasted%20image%2020250717164557.png)
 
 The victim is now ready to receive additional data. We don’t know exactly what’s being received, but based on the behavior of the following code:
 
@@ -853,15 +853,15 @@ Before moving on, let’s analyze this undefined function:
 
 - **`sub_140001010`:**
 
-![[Pasted image 20250717164624.png]]
-![[Pasted image 20250717164717.png]]
+![Screenshot](Images/Pasted%20image%2020250717164624.png)
+![Screenshot](Images/Pasted%20image%2020250717164717.png)
 
 I can confirm this really looks like a decryption routine. I had it analyzed by AI, and it identified an **RC4-style key-schedule and PRGA** (256-byte S-box). It returns a pointer (`r15`) to the decrypted buffer.
 
 Let’s continue examining the `main` function:
 
-![[Pasted image 20250717164735.png]]
-![[Pasted image 20250717164756.png]]
+![Screenshot](Images/Pasted%20image%2020250717164735.png)
+![Screenshot](Images/Pasted%20image%2020250717164756.png)
 
 Here the code is clearly trying to retrieve the encrypted built-in resource we identified during static analysis and is decrypting it using the same decryption algorithm seen earlier:
 
@@ -878,16 +878,16 @@ blend(res_mem, key);                 // byte-wise copy @ +0xDB0
 
 Then we see:
 
-![[Pasted image 20250717164827.png]]
-![[Pasted image 20250717164839.png]]
+![Screenshot](Images/Pasted%20image%2020250717164827.png)
+![Screenshot](Images/Pasted%20image%2020250717164839.png)
 
 Which we can’t really understand until we further analyze `sub_1400011A0` and `sub_140001980`, so let’s start with:
 
 - **`sub_140001980`:**
 
-![[Pasted image 20250717164954.png]]
-![[Pasted image 20250717165006.png]]
-![[Pasted image 20250717165011.png]]
+![Screenshot](Images/Pasted%20image%2020250717164954.png)
+![Screenshot](Images/Pasted%20image%2020250717165006.png)
+![Screenshot](Images/Pasted%20image%2020250717165011.png)
 
 Etc… (partial screenshot). AI identified this as a function to **prepare a .NET stager**:  
 `sub_140001980(blobA, ComputerName)` →  
@@ -897,14 +897,14 @@ That managed entry point is the **true second-stage payload** the authors intend
 
 - **`sub_1400011A0`:**
 
-![[Pasted image 20250717165023.png]]
+![Screenshot](Images/Pasted%20image%2020250717165023.png)
 
 The above is just a thin wrapper around `__stdio_common_vswprintf` — it simply assembles a wide-string command line into a local buffer, which is then used to supply the argument to `CreateProcessW` for spawning a new process.
 
 Ok, so now we can better understand what this last part of the `main` function we were examining earlier is actually doing:
 
-![[Pasted image 20250717165108.png]]
-![[Pasted image 20250717165119.png]]
+![Screenshot](Images/Pasted%20image%2020250717165108.png)
+![Screenshot](Images/Pasted%20image%2020250717165119.png)
 
 And basically, it is:
 
@@ -1177,18 +1177,18 @@ Of course — even if the C2 is offline, we already captured the **entire networ
 
 Let’s reopen Wireshark and filter for `tcp.port == 31337` and we see:
 
-![[Pasted image 20250717165703.png]]
+![Screenshot](Images/Pasted%20image%2020250717165703.png)
 
 Obviously, `192.168.0.104` is our C2 server that was contacted.  
 To confirm that `104` is indeed the malicious C2, we can filter with `frame contains "utube.online"` and we see here:
 
-![[Pasted image 20250717165731.png]]
+![Screenshot](Images/Pasted%20image%2020250717165731.png)
 
 The above confirms what we discovered during our initial analysis: it’s the victim requesting the `.exe` file from the C2 — confirming that `192.168.0.104` is the **C2**, and `192.168.0.115` is the **victim**.
 
 In the same way, we can filter for the handshake marker sent by the victim to the C2 using `frame contains "z11gj1"`
 
-![[Pasted image 20250717165741.png]]
+![Screenshot](Images/Pasted%20image%2020250717165741.png)
 
 Above, we can see that the first relevant frame is **No. 681**, which corresponds to the transfer of the `.exe` file to the victim. We're **not interested** in that one — we already have the file.
 
@@ -1196,12 +1196,12 @@ What **does** interest us is the **other frame** containing `"z11gj1"` — **Fra
 
 So, let’s **follow this TCP stream** — and we can now see the **entire communication** between the victim and the C2!
 
-![[Pasted image 20250717170027.png]]
+![Screenshot](Images/Pasted%20image%2020250717170027.png)
 Above, we can see the **first handshake and its response** (the encrypted key), followed by the **second handshake and its response** (the encrypted blob A)!
 
 Great — now let’s **save the stream as raw data**, so we can work on it **outside of Wireshark**, for example in a hex editor or custom script:
 
-![[Pasted image 20250717170117.png]]
+![Screenshot](Images/Pasted%20image%2020250717170117.png)
 
 So now that we have these pieces of information, what can we do? We have **two options**:
 
@@ -1285,11 +1285,11 @@ These are exactly the kinds of protocols that often **leak NetBIOS or full hostn
 ➡️ Next logical step: **look into SMB/SMB2/kerberos packets** from the victim to 105 and search for leaked hostname strings.
 
 
-![[Pasted image 20250717170156.png]]
+![Screenshot](Images/Pasted%20image%2020250717170156.png)
 
 Bingo! Protocol Kerberos5 leaks the network name:
 
-![[Pasted image 20250717170211.png]]
+![Screenshot](Images/Pasted%20image%2020250717170211.png)
 
 - **Domain name:** `MEGACORP.LOCAL`
     
@@ -1314,7 +1314,7 @@ Just for reference, here is the filter to isolate that traffic `ip.addr == 192.1
 
 And here is the corresponding screenshot:
 
-![[Pasted image 20250717170605.png]]
+![Screenshot](Images/Pasted%20image%2020250717170605.png)
 
 It seems we finally have something concrete to work with.
 
@@ -1428,7 +1428,7 @@ python.exe C:\Users\xxx\PycharmProjects\PythonProject\main.py
 
 BOOM!
 
-![[Pasted image 20250717171021.png]]
+![Screenshot](Images/Pasted%20image%2020250717171021.png)
 
 We successfully decrypted the new **.NET file** that the process attempts to load! 😄
 
@@ -1500,7 +1500,7 @@ if __name__ == "__main__":
 	main()
 ```
 
-![[Pasted image 20250717171232.png]]
+![Screenshot](Images/Pasted%20image%2020250717171232.png)
 
 3. **Merge `blobA` and `blobB`**, just like the loader malware was doing:  
     → Open `blobA` in a hex editor  
@@ -1511,13 +1511,13 @@ if __name__ == "__main__":
 ✅ **Done!**  
 We now have the **fully rebuilt stage 2** payload.
 
-![[Pasted image 20250717171250.png]]
+![Screenshot](Images/Pasted%20image%2020250717171250.png)
 
 Here we can see that payload is using the .Net.Socket and .Security.Cryptography namespaces -> these are very dangerous indicators if combined into malicious functionalities because it can have connections with remote C2 servers or other network resources and can encrypt files and/or communications!
 
 It might work exploring more of the listed trees like methods:
 
-![[Pasted image 20250717171318.png]]
+![Screenshot](Images/Pasted%20image%2020250717171318.png)
 
 Here we can see that the payload is using the **`System.Net.Sockets`** and **`System.Security.Cryptography`** namespaces — these are strong indicators of potentially dangerous functionality.
 
@@ -1532,7 +1532,7 @@ When combined in malicious code, they can allow:
 
 It’s definitely worth exploring more of the listed **classes and methods** in the tree to understand the behavior in detail.
 
-![[Pasted image 20250717171345.png]]
+![Screenshot](Images/Pasted%20image%2020250717171345.png)
 
 Those method names definitely appear suspicious and likely related to **ransomware activity** — good to take note of them.
 
@@ -1555,14 +1555,14 @@ Before jumping into full code analysis, let’s review the **header properties**
 
 All of this supports the idea that this file is a **custom-built or packed second-stage**, likely designed to evade basic static analysis and behave differently when loaded in-memory.
 
-![[Pasted image 20250717171510.png]]
+![Screenshot](Images/Pasted%20image%2020250717171510.png)
 
 (PEBear screenshot)  
 And the **.NET directory** — the one most important for our analysis.
 
 Now, let’s move into the most important part of this:
 
-![[Pasted image 20250717171525.png]]
+![Screenshot](Images/Pasted%20image%2020250717171525.png)
 
 In the above screenshot, we see the class **`CorpClass`**, which contains a method named **`EntryPoint`** — very likely the true execution entry.
 
@@ -1827,7 +1827,7 @@ if __name__ == "__main__":
 
 Saved content of priv.xml generated:
 
-![[Pasted image 20250717174112.png]]
+![Screenshot](Images/Pasted%20image%2020250717174112.png)
 
 Now that we have all the private factors within the `<RSAKeyValue>` block, we can fully reconstruct the 1024-bit RSA key and decrypt the first 128 bytes captured from the wire to recover the original 16-byte MD5 hash.
 
@@ -1902,7 +1902,7 @@ We are finally close to the solution! ❤️
 We now have the base64-encoded hash password that was used to AES-encrypt `secret.jpg.enc` (which is most likely our flag).  
 Let’s save the AES-encrypted blob—the final part of the communication stream we’ve been analyzing.
 
-![[Pasted image 20250717174503.png]]
+![Screenshot](Images/Pasted%20image%2020250717174503.png)
 
 and use the following python3 code to decrypt it:
 
@@ -1971,7 +1971,7 @@ Key : b19022f391b4bfecfa4063ef5a2f1ecdb878c9d4b8b4abb650bd515078409ac4
 IV : 3dbd5894933697225d6ca0b67f79c5ab
 ```
 
-![[Pasted image 20250717174630.png]]
+![Screenshot](Images/Pasted%20image%2020250717174630.png)
 
 ...I’m tired, guys.  
 But let’s not give up after all the hard work. We’ve already dealt with everything else—RC4, AES, RSA—so now it’s time to look back at what we’ve done so far.
@@ -1980,7 +1980,7 @@ Up to this point, we’ve been assuming there was only one file under Documents.
 
 In fact, if we re-analyze the pcap file, there’s another stream similar to the previous one—but this time, it’s for a different file.
 
-![[Pasted image 20250717174644.png]]
+![Screenshot](Images/Pasted%20image%2020250717174644.png)
 So we can reproduce all the steps we followed earlier to retrieve the cat, but this time on the new stream:
 
 1. Save this stream as a raw hex dump.
@@ -1999,7 +1999,7 @@ So we can reproduce all the steps we followed earlier to retrieve the cat, but t
     
 6. Update the `decrypt_secret.py` script with the correct new AES key and execute it to decrypt the PDF.
 
-![[Pasted image 20250717174755.png]]
+![Screenshot](Images/Pasted%20image%2020250717174755.png)
 
 DONE!!!!!!!!!
 
