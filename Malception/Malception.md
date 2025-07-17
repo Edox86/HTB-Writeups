@@ -1513,9 +1513,7 @@ We now have the **fully rebuilt stage 2** payload.
 
 ![Screenshot](Images/Pasted%20image%2020250717171250.png)
 
-Here we can see that payload is using the .Net.Socket and .Security.Cryptography namespaces -> these are very dangerous indicators if combined into malicious functionalities because it can have connections with remote C2 servers or other network resources and can encrypt files and/or communications!
-
-It might work exploring more of the listed trees like methods:
+We can use dnSpy to have a look at the .NET disassembled plus a couple of more hints:
 
 ![Screenshot](Images/Pasted%20image%2020250717171318.png)
 
