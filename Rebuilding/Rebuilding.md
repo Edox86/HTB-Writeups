@@ -846,7 +846,7 @@ We have two approaches:
 
 1. **Dynamic analysis** – set a breakpoint at the XOR decryption loop and read each resulting byte:
 
-![[Pasted image 20250803190659.png]]
+![Screenshot](Images/Pasted%20image%2020250803190659.png)
 
 I set a breakpoint at the XOR instruction and ran IDA (with `argv[1]` set to something like `AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`). By stepping through and reading the value stored in `esi` after each XOR, I extracted the following hex:
 
@@ -914,16 +914,16 @@ To inspect the global constructor, open IDA and navigate to:
 
 Then locate the segment with type **`INIT_ARRAY`** and double-click it.
 
-![[Pasted image 20250803195122.png]]
+![Screenshot](Images/Pasted%20image%2020250803195122.png)
 
 We spot a new function, `sub_84A`. Let’s follow it to see what it does.
-![[Pasted image 20250803195156.png]]
+![Screenshot](Images/Pasted%20image%2020250803195156.png)
 
 As we can see, this constructor indeed modifies the `key` at runtime—changing it from `humans` to `aliens`.
 
 In fact, if we set a breakpoint at the first instruction of `main` and inspect the `key` value at runtime, we find it has been updated to `aliens`.
 
-![[Pasted image 20250803194806.png]]
+![Screenshot](Images/Pasted%20image%2020250803194806.png)
 
 Let's update our Python script to use the correct key (`aliens`) and re-run the decryption.
 
