@@ -19,8 +19,8 @@
 ## ⚙️ Environment Setup
 - **Operating System:** `Kali Linux`
 - **Tools Used:**
-  - Static: `file`, `sha256sum`, `strings`, `base64`, `upx`, `readelf`, `ldd`, `objdump`
-  - Dynamic: `ltrace`, `strace`, `IDA Free`, `Ghidra`
+  - Static: `file`, `sha256sum`, `strings`, `ldd`
+  - Dynamic: `ltrace`, `Ghidra`
 
 ---
 
